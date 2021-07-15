@@ -9,6 +9,8 @@
 
 ## Usage
 
-* use the left button to select which macro to enter
-* short-press the right button to enter without carriage return
-* long-press the right button to enter with carriage return
+* use the left button to select which bank of macros to enter
+* use the right button to select which macro to enter
+* short-press the left button to enter without carriage return
+* long-press the left button to enter with carriage return
+* use the right button to toggle mute
