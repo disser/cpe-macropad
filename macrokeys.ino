@@ -5,27 +5,21 @@
 
 #define LEFT_BUTTON 1
 #define RIGHT_BUTTON 2
-#define LONG_LEFT_BUTTON 3
-#define LONG_RIGHT_BUTTON 4
 #define RELEASE_LEFT_BUTTON 5
 #define RELEASE_RIGHT_BUTTON 6
 
+#define DEBOUNCE_TIME 10
 #define LONG_PRESS_TIME 500
-#define TIMEOUT 5000
+#define TIMEOUT 2000
 
-#define MUTE_BUTTON RIGHT_BUTTON
-#define RELEASE_MUTE_BUTTON RELEASE_RIGHT_BUTTON
-#define BANK_BUTTON LEFT_BUTTON
-#define RELEASE_BANK_BUTTON RELEASE_LEFT_BUTTON
-#define MACRO_BUTTON RIGHT_BUTTON
-#define RELEASE_MACRO_BUTTON RELEASE_RIGHT_BUTTON
-#define ISSUE_BUTTON LEFT_BUTTON
-#define RELEASE_ISSUE_BUTTON RELEASE_LEFT_BUTTON
-#define LONG_ISSUE_BUTTON LONG_LEFT_BUTTON
+#define BANK_BUTTON RIGHT_BUTTON
+#define RELEASE_BANK_BUTTON RELEASE_RIGHT_BUTTON
+#define MACRO_BUTTON LEFT_BUTTON
+#define RELEASE_MACRO_BUTTON RELEASE_LEFT_BUTTON
+#define ISSUE_BUTTON RIGHT_BUTTON
+#define RELEASE_ISSUE_BUTTON RELEASE_RIGHT_BUTTON
 
 State state_idle(&on_init, &check_buttons, NULL);
-
-State state_toggle_beep(NULL, &check_buttons, NULL);
 
 State state_bank_button_down(&play_beep, &check_buttons, NULL);
 State state_bank_button_up(NULL, &check_buttons, NULL);
@@ -48,13 +42,36 @@ void on_init() {
     startupAnimation();
 }
 
+bool debounceLeft() {
+  unsigned long start = millis();
+  while (CircuitPlayground.leftButton()) {
+      unsigned long now = millis();
+      if (now - start > DEBOUNCE_TIME) {
+        return true;
+      }
+  }
+  return false;
+}
+
+bool debounceRight() {
+  unsigned long start = millis();
+  while (CircuitPlayground.rightButton()) {
+      unsigned long now = millis();
+      if (now - start > DEBOUNCE_TIME) {
+        return true;
+      }
+  }
+  return false;
+}
+
+
 void check_buttons() {
-    if (CircuitPlayground.leftButton()) {
+    if (debounceLeft()) {
         if (!leftButtonHeld) {
-            fsm.trigger(LEFT_BUTTON);
-            leftButtonHeld = true;
-            return;
-        }
+              fsm.trigger(LEFT_BUTTON);
+              leftButtonHeld = true;
+              return;
+        } 
     } else {
         if (leftButtonHeld) {
             fsm.trigger(RELEASE_LEFT_BUTTON);
@@ -62,7 +79,7 @@ void check_buttons() {
         leftButtonHeld = false;
     }
 
-    if (CircuitPlayground.rightButton()) {
+    if (debounceRight()) {
         if (!rightButtonHeld) {
             fsm.trigger(RIGHT_BUTTON);
             rightButtonHeld = true;
@@ -78,6 +95,7 @@ void check_buttons() {
 
 void first_bank() {
     currentBank = 0;
+    currentMacro = 0;
     single_light(0);
 }
 
@@ -121,12 +139,11 @@ void setup() {
 
     // from idle state
     fsm.add_transition(&state_idle, &state_bank_button_down, BANK_BUTTON, &first_bank);
-    fsm.add_transition(&state_idle, &state_toggle_beep, MUTE_BUTTON, &toggle_beep);
-
-    fsm.add_transition(&state_toggle_beep, &state_idle, RELEASE_MUTE_BUTTON, NULL);
+    fsm.add_transition(&state_idle, &state_macro_button_down, MACRO_BUTTON, &first_macro);
 
     // from bank button down state
     fsm.add_transition(&state_bank_button_down, &state_bank_button_up, RELEASE_BANK_BUTTON, NULL);
+    fsm.add_timed_transition(&state_bank_button_down, &state_idle, LONG_PRESS_TIME, &play_current_macro_with_cr);
 
     // from bank button up state
     fsm.add_transition(&state_bank_button_up, &state_bank_button_down, BANK_BUTTON, &next_bank);
@@ -135,6 +152,7 @@ void setup() {
 
     // from macro button down state
     fsm.add_transition(&state_macro_button_down, &state_macro_button_up, RELEASE_MACRO_BUTTON, NULL);
+    fsm.add_timed_transition(&state_macro_button_down, &state_idle, LONG_PRESS_TIME, &toggle_beep);
 
     // from macro button up state
     fsm.add_transition(&state_macro_button_up, &state_macro_button_down, MACRO_BUTTON, &next_macro);
@@ -158,7 +176,7 @@ void play_beep() {
     if (mute)
         return;
     CircuitPlayground.speaker.enable(true);
-    CircuitPlayground.playTone(1760, 100);
+    CircuitPlayground.playTone(880 + 110*(currentMacro+currentBank), 100);
 }
 
 void play_confirmation_beep() {
